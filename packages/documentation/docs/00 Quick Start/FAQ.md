@@ -139,7 +139,7 @@ var DropTarget = require('react-dnd').DropTarget;
 
 var fileTarget = {
   drop: function (props, monitor) {
-    console.log(monitor.getItem().files);
+    // console.log(monitor.getItem().files);
   }
 };
 
@@ -175,7 +175,7 @@ import { DropTarget } from 'react-dnd';
 
 const fileTarget = {
   drop(props, monitor) {
-    console.log(monitor.getItem().files);
+    // console.log(monitor.getItem().files);
   }
 };
 
@@ -206,7 +206,7 @@ import { DropTarget } from 'react-dnd';
 
 const fileTarget = {
   drop(props, monitor) {
-    console.log(monitor.getItem().files);
+    // console.log(monitor.getItem().files);
   }
 };
 

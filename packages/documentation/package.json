@@ -3,13 +3,13 @@
 	"version": "3.0.2",
 	"private": true,
 	"scripts": {
-    "clean": "rimraf __site__ __site_prerender__",
-    "serve": "webpack-dev-server --config site/webpack-client.config.js --hot --content-base __site__",
-    "start": "run-s clean prerender build:index_page serve",
-    "prerender": "./node_modules/.bin/webpack --config site/webpack-prerender.config.js",
-    "build": "tsc",
-    "build:index_page": "ts-node ./scripts/buildSiteIndexPages.ts",
-    "build_site": "./scripts/buildStaticSite.sh"
+		"clean": "rimraf __site__ __site_prerender__",
+		"serve": "webpack-dev-server --config site/webpack-client.config.js --hot --content-base __site__",
+		"start": "run-s clean prerender build:index_page serve",
+		"prerender": "./node_modules/.bin/webpack --config site/webpack-prerender.config.js",
+		"build": "tsc",
+		"build:index_page": "ts-node ./scripts/buildSiteIndexPages.ts",
+		"build_site": "./scripts/buildStaticSite.sh"
 	},
 	"devDependencies": {
 		"autoprefixer": "^7.1.2",

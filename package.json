@@ -45,7 +45,6 @@
 		"test": "run-s lint test_modules jest:cov",
 		"prettify":
 			"prettier 'packages/*/**/*.js' 'examples/**/*.js' 'site/**/*.js'",
-		"precommit": "lint-staged",
 		"start": "lerna run --stream start",
 		"prepublish": "npm test"
 	},

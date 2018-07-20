@@ -1,7 +1,35 @@
 import React from 'react'
 import PropTypes from 'prop-types'
-import { DropTarget, ConnectDropTarget, DropTargetMonitor } from 'react-dnd'
+import {
+	DropTarget,
+	DragSource,
+	ConnectDragSource,
+	ConnectDropTarget,
+	DropTargetMonitor,
+} from 'react-dnd'
 import ItemTypes from './ItemTypes'
+
+export const removeFromArray = (array, index) => ([
+  ...array.slice(0, index),
+  ...array.slice(index + 1),
+]);
+
+export const insertIntoArray = (array, index, object) => ([
+  ...array.slice(0, index),
+  object,
+  ...array.slice(index),
+]);
+
+export const moveInArray = (array, sourceIndex, targetIndex) => {
+  const item = array[sourceIndex];
+  const delta = (sourceIndex < targetIndex) ? -1 : 0;
+
+  return insertIntoArray(
+    removeFromArray(array, sourceIndex),
+    targetIndex + delta,
+    item,
+  );
+};
 
 function getStyle(backgroundColor: string): React.CSSProperties {
 	return {
@@ -12,9 +40,7 @@ function getStyle(backgroundColor: string): React.CSSProperties {
 		backgroundColor,
 		padding: '2rem',
 		paddingTop: '1rem',
-		margin: '1rem',
 		textAlign: 'center',
-		float: 'left',
 		fontSize: '1rem',
 	}
 }
@@ -25,15 +51,13 @@ const boxTarget = {
 		monitor: DropTargetMonitor,
 		component: React.Component,
 	) {
-		const hasDroppedOnChild = monitor.didDrop()
-		if (hasDroppedOnChild && !props.greedy) {
-			return
+		if (!monitor.didDrop()) {
+			return {
+				...props,
+				droppedOn: props.item,
+				insertItem: droppedItem => props.insertItem(droppedItem, props.item),
+			}
 		}
-
-		component.setState({
-			hasDropped: true,
-			hasDroppedOnChild,
-		})
 	},
 }
 
@@ -41,6 +65,8 @@ export interface DustbinProps {
 	isOver?: boolean
 	isOverCurrent?: boolean
 	greedy?: boolean
+	item: object
+	onStateUpdate: (newState: object) => object
 	connectDropTarget?: ConnectDropTarget
 }
 
@@ -49,10 +75,38 @@ export interface DustbinState {
 	hasDroppedOnChild: boolean
 }
 
+const dustbinSource = {
+	beginDrag(props) {
+		return props;
+	},
+	endDrag(props, monitor, component) {
+		// console.log('hello');
+		// console.log(props, component)
+		const dropResult = monitor.getDropResult();
+		const dropItem = monitor.getItem();
+		// console.log(dropResult, dropItem);
+		// console.log('dropResult', dropResult);
+		if (dropItem.parentId === dropResult.parentId) {
+			dropItem.moveItem(props.item, dropResult.droppedOn);
+		} else {
+			dropResult.insertItem(props.item);
+			dropItem.removeItem(props.item);
+		}
+		// // console.log(dropItem);
+		// if (props.item.contents.indexOf(monitor.getDropResult()) === -1) {
+		// 	// console.log('remove from contents');
+		// 	return;
+		// }
+	}
+}
+
 @DropTarget(ItemTypes.BOX, boxTarget, (connect, monitor) => ({
 	connectDropTarget: connect.dropTarget(),
 	isOver: monitor.isOver(),
 	isOverCurrent: monitor.isOver({ shallow: true }),
+}))
+@DragSource(ItemTypes.BOX, dustbinSource, connect => ({
+	connectDragSource: connect.dragSource(),
 }))
 export default class Dustbin extends React.Component<
 	DustbinProps,
@@ -62,15 +116,38 @@ export default class Dustbin extends React.Component<
 		connectDropTarget: PropTypes.func.isRequired,
 		isOver: PropTypes.bool.isRequired,
 		isOverCurrent: PropTypes.bool.isRequired,
+		item: PropTypes.object.isRequired,
+		reconcileState: PropTypes.func.isRequired,
+		insertItem: PropTypes.func.isRequired,
 		greedy: PropTypes.bool,
 		children: PropTypes.node,
 	}
 
+	public static defaultProps = {
+		greedy: true,
+	}
+
 	constructor(props: DustbinProps) {
 		super(props)
-		this.state = {
-			hasDropped: false,
-			hasDroppedOnChild: false,
+		props.dustbinRef(this);
+		this.reconcileState = () => {
+			if (this.props.item.type === 'worksheet') {
+				return { ...this.state.item };
+			}
+	
+			return {
+				...this.state.item,
+				contents: this.state.item.contents.map(
+					({ id }) => this.refs[id].reconcileState()
+				),
+			}
+		}
+	}
+	
+	public state = {
+		item: {
+			...this.props.item,
+			isFromState: true,
 		}
 	}
 
@@ -80,9 +157,14 @@ export default class Dustbin extends React.Component<
 			isOver,
 			isOverCurrent,
 			connectDropTarget,
+			onStateUpdate,
 			children,
 		} = this.props
-		const { hasDropped, hasDroppedOnChild } = this.state
+		const { item } = this.state
+		if (item.type === 'group') {
+			// console.log(item, this.state);
+		}
+		const { connectDragSource } = this.props
 
 		const text = greedy ? 'greedy' : 'not greedy'
 		let backgroundColor = 'rgba(0, 0, 0, .5)'
@@ -93,17 +175,62 @@ export default class Dustbin extends React.Component<
 
 		return (
 			connectDropTarget &&
-			connectDropTarget(
+			connectDragSource && 
+			connectDragSource(connectDropTarget(
 				<div style={getStyle(backgroundColor)}>
 					{text}
 					<br />
-					{hasDropped && (
-						<span>dropped {hasDroppedOnChild && ' on child'}</span>
-					)}
 
-					<div>{children}</div>
-				</div>,
-			)
-		)
+					<div>
+						{item.id}
+						{item.contents && item.contents.map((child, idx) => (
+							<Dustbin
+								key={child.id}
+								item={child}
+								dustbinRef={(ref) => {
+									this.refs = { ...this.refs, [child.id]: ref };
+								}}
+								parentId={item.id}
+								greedy={child.type === 'group'}
+								moveItem={(dragItem, above) => {
+									const dragItemIndex = item.contents.indexOf(dragItem);
+									const insertIndex = item.contents.indexOf(above);
+									// console.log('moveItem', item.contents, dragItemIndex, insertIndex)
+									// console.log('after', moveInArray(item.contents, dragItemIndex, insertIndex));
+									this.setState(() => ({
+										item: {
+											...item,
+											contents: moveInArray(item.contents, dragItemIndex, insertIndex),
+										}
+									}));
+								}}
+								insertItem={(dragItem, above) => {
+									const insertIndex = item.contents.indexOf(above);
+									// console.log('insertItem')
+									this.setState({
+										item: {
+											...item,
+											contents: insertIntoArray(item.contents, insertIndex, dragItem),
+										}
+									});
+								}}
+								removeItem={(dragItem) => {
+									const removeIndex = item.contents.indexOf(dragItem);
+									// console.log('removeItem');
+									this.setState({
+										item: {
+											...item,
+											contents: removeFromArray(item.contents, removeIndex)
+										},
+									});
+								}}
+								reconcileState={() => {
+									return reconcileState(item);
+								}}
+							/>
+						))}
+					</div>
+				</div>,	
+		)))
 	}
 }
